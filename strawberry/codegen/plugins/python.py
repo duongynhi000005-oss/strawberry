@@ -107,6 +107,12 @@ class PythonPlugin(QueryCodegenPlugin):
 
         return type_.name
 
+    def _format_docstring(self, description: str) -> str:
+        escaped = description.replace('"""', r"\"\"\"")
+        if escaped.endswith('"'):
+            escaped = f"{escaped} "
+        return f'"""{escaped}"""'
+
     def _print_field(self, field: GraphQLField) -> str:
         name = field.name
 
@@ -116,7 +122,11 @@ class PythonPlugin(QueryCodegenPlugin):
         default_value = ""
         if field.default_value is not None:
             default_value = f" = {self._print_argument_value(field.default_value)}"
-        return f"{name}: {self._get_type_name(field.type)}{default_value}"
+        field_def = f"{name}: {self._get_type_name(field.type)}{default_value}"
+        if field.description:
+            docstring = self._format_docstring(field.description)
+            return f"{field_def}\n{docstring}"
+        return field_def
 
     def _print_argument_value(self, argval: GraphQLArgumentValue) -> str:
         if hasattr(argval, "values"):
@@ -167,7 +177,14 @@ class PythonPlugin(QueryCodegenPlugin):
             lines.append(
                 textwrap.indent(f"# typename: {type_.graphql_typename}", indent)
             )
-        lines.append(textwrap.indent(fields, indent))
+        if type_.description:
+            lines.append(
+                textwrap.indent(self._format_docstring(type_.description), indent)
+            )
+            if fields:
+                lines.append("")
+        if fields:
+            lines.append(textwrap.indent(fields, indent))
 
         return "\n".join(lines)
 

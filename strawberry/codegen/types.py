@@ -33,6 +33,7 @@ class GraphQLField:
     alias: str | None
     type: GraphQLType
     default_value: GraphQLArgumentValue | None = None
+    description: str | None = None
 
 
 @dataclass
@@ -45,6 +46,7 @@ class GraphQLObjectType:
     name: str
     fields: list[GraphQLField] = field(default_factory=list)
     graphql_typename: str | None = None
+    description: str | None = None
 
 
 # Subtype of GraphQLObjectType.
@@ -56,6 +58,7 @@ class GraphQLFragmentType(GraphQLObjectType):
     fields: list[GraphQLField] = field(default_factory=list)
     graphql_typename: str | None = None
     on: str = ""
+    description: str | None = None
 
     def __post_init__(self) -> None:
         if not self.on:

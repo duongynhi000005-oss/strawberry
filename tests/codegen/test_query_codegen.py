@@ -106,3 +106,91 @@ def test_nested_fragment_spread_does_not_depend_on_definition_order(
 
     assert inner_last == inner_first
     assert "PersonFields" in inner_last
+
+
+def test_codegen_emits_descriptions_as_docstrings(tmp_path):
+    import ast
+
+    import strawberry
+    from strawberry.codegen import QueryCodegen
+    from strawberry.codegen.plugins.python import PythonPlugin
+
+    @strawberry.type(description="A tracked issue.")
+    class Issue:
+        id: strawberry.ID = strawberry.field(description="Unique identifier.")
+        title: str = strawberry.field(description="The issue title.")
+
+    @strawberry.input(description="Fields for a new issue.")
+    class IssueCreateInput:
+        title: str = strawberry.field(description="Title for the new issue.")
+
+    @strawberry.type
+    class Query:
+        @strawberry.field
+        def issue(self, id: strawberry.ID) -> Issue:
+            return Issue(id=id, title="")
+
+    @strawberry.type
+    class Mutation:
+        @strawberry.mutation
+        def issue_create(self, input: IssueCreateInput) -> Issue:
+            return Issue(id="1", title=input.title)
+
+    schema = strawberry.Schema(query=Query, mutation=Mutation)
+    query_str = """
+    mutation Create($input: IssueCreateInput!) {
+      issueCreate(input: $input) { id title }
+    }
+    """
+    query_file = tmp_path / "create.graphql"
+    generator = QueryCodegen(schema, plugins=[PythonPlugin(query_file)])
+    result = generator.run(query_str)
+    code = result.to_string()
+
+    assert '"""A tracked issue."""' in code
+    assert '"""Unique identifier."""' in code
+    assert '"""The issue title."""' in code
+    assert '"""Fields for a new issue."""' in code
+    assert '"""Title for the new issue."""' in code
+
+    ast.parse(code)
+
+
+def test_codegen_docstrings_with_quotes_and_multiline(tmp_path):
+    import ast
+
+    import strawberry
+    from strawberry.codegen import QueryCodegen
+    from strawberry.codegen.plugins.python import PythonPlugin
+
+    @strawberry.type(description='Multi-line\ndescription with "quotes".')
+    class Item:
+        code: str = strawberry.field(description='Code ending with "quote"')
+        notes: str = strawberry.field(description='Notes with """triple quotes"""')
+
+    @strawberry.type
+    class Query:
+        @strawberry.field(description="Fetches an item.")
+        def item(self) -> Item:
+            return Item(code="A", notes="B")
+
+    schema = strawberry.Schema(query=Query)
+    query_str = """
+    query GetItem {
+      aliased_item: item {
+        aliased_code: code
+        notes
+      }
+    }
+    """
+    query_file = tmp_path / "item.graphql"
+    generator = QueryCodegen(schema, plugins=[PythonPlugin(query_file)])
+    result = generator.run(query_str)
+    code = result.to_string()
+
+    assert '"""Multi-line\n    description with "quotes"."""' in code
+    assert '"""Code ending with "quote" """' in code
+    assert r'"""Notes with \"\"\"triple quotes\"\"\" """' in code
+    assert '"""Fetches an item."""' in code
+
+    ast.parse(code)
